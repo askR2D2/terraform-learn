@@ -13,63 +13,64 @@ provider "aws" {
 }
 
 # Variables
-variable "cidr_blocks" {
-  description = "CIDR Blocks for VPC and Subnet"
-  type = list(object({
-    cidr_block = string
-    name       = string
-  }))
-  # default     = "10.0.0.0/24"
-}
-
-
-variable "environment" {
-  description = "Deployment Environment"
-
-}
-
+variable "vpc_cidr_block" {}
+variable "subnet_cidr_block" {}
 variable "avail_zone" {}
+variable "env_prefix" {}
+
 
 # VPC Resource
-resource "aws_vpc" "terraform_vpc" {
-  cidr_block = var.cidr_blocks[0].cidr_block
+resource "aws_vpc" "myapp_vpc" {
+  cidr_block = var.vpc_cidr_block
   tags = {
-    "Name" = var.cidr_blocks[0].name
+    "Name" = "${var.env_prefix}-vpc"
   }
 }
 
-
-resource "aws_subnet" "dev-frontend" {
-  cidr_block        = var.cidr_blocks[1].cidr_block
-  vpc_id            = aws_vpc.terraform_vpc.id
+resource "aws_subnet" "myapp-subnet-1" {
+  cidr_block        = var.subnet_cidr_block
+  vpc_id            = aws_vpc.myapp_vpc.id
   availability_zone = var.avail_zone
   tags = {
-    "Name" = var.cidr_blocks[1].name
+    "Name" = "${var.env_prefix}-subnet"
   }
 }
 
-# Data is used for existing resource
-data "aws_vpc" "existing_vpc" {
-  default = true
-}
+/*resource "aws_route_table" "myapp-route-table" {
+  vpc_id = aws_vpc.myapp_vpc.id
 
-resource "aws_subnet" "default-subnet-1" {
-  cidr_block = "172.31.10.0/24"
-  vpc_id     = data.aws_vpc.existing_vpc.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.myapp-igw.id
+  }
   tags = {
-    "Name" = "${var.environment}-default-frontend-1"
+    "Name" = "${var.env_prefix}-rtb"
   }
 
 }
 
-output "VPC_ID" {
-  value = aws_vpc.terraform_vpc.id
+resource "aws_route_table_association" "a-rtb-subnet" {
+  subnet_id      = aws_subnet.myapp-subnet-1.id
+  route_table_id = aws_route_table.myapp-route-table.id
+}*/
+
+resource "aws_internet_gateway" "myapp-igw" {
+  vpc_id = aws_vpc.myapp_vpc.id
+  tags = {
+    "Name" = "${var.env_prefix}-igw"
+  }
 }
 
-output "Default_Subnnet_ID" {
-  value = aws_subnet.default-subnet-1.id
-}
 
-output "Frontend_Subnet_ID" {
-  value = aws_subnet.dev-frontend.id
+
+resource "aws_default_route_table" "main-rtb" {
+  default_route_table_id = aws_vpc.myapp_vpc.default_route_table_id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.myapp-igw.id
+  }
+  tags = {
+    "Name" = "${var.env_prefix}-main-rtb"
+  }
 }
